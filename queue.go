@@ -176,7 +176,7 @@ func (q *Queue) visibility() {
 			continue
 		}
 
-		ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, _ := context.WithTimeout(context.Background(), q.timeout)
 		found := 0
 		for cur.Next(ctx) {
 			found++
