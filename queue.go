@@ -13,6 +13,8 @@ import (
 	"github.com/mongodb/mongo-go-driver/mongo/options"
 )
 
+// The queue struct. Keep a handle to this struct for
+// sending and receiving messages.
 type Queue struct {
 	collection *mongo.Collection
 	client     *mongo.Client
@@ -23,7 +25,7 @@ type Queue struct {
 	timeout    time.Duration
 }
 
-// Create new new queue struct.
+// NewQueue creates new new queue struct.
 func NewQueue(
 	dbName,
 	collectionName,
@@ -47,6 +49,7 @@ func NewQueue(
 	return queue, nil
 }
 
+// Size provides the total depth of the message queue.
 func (q *Queue) Size(ctx context.Context) (int64, error) {
 	return q.collection.CountDocuments(ctx, bson.D{}, options.Count())
 }
@@ -214,7 +217,7 @@ func (q *Queue) resetEntry() {
 
 }
 
-// Insert a new item into the queue. This allows for an empty payload.
+// Enqueue inserts a new item into the queue. This allows for an empty payload.
 // If visibility is negative, this will panic.
 func (q *Queue) Enqueue(
 	ctx context.Context,
@@ -236,9 +239,8 @@ func (q *Queue) Enqueue(
 
 	if _, err := q.collection.InsertOne(ctx, msg); err != nil {
 		return fmt.Errorf("Unable to enqueue msg into collection %s - reason: %v", q.collection.Name(), err)
-	} else {
-		return nil
 	}
+	return nil
 }
 
 // Listen returns a channel and polls the database for new messages in
@@ -310,6 +312,9 @@ func (q *Queue) listen() {
 	q.wg.Done()
 }
 
+// StopListen must be called when you are ready to shutdown the Listen call. This
+// closes the channel returned by the Listen call and terminates the goroutines that
+// are call Dequeue.
 func (q *Queue) StopListen() {
 	q.mux.Lock()
 	if q.channel != nil {

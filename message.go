@@ -11,7 +11,7 @@ import (
 	"github.com/mongodb/mongo-go-driver/mongo/options"
 )
 
-// The queue entry structure.
+// QueueMessage is the queue message structure.
 type QueueMessage struct {
 	Id         *primitive.ObjectID `json:"id" bson:"_id"`
 	Version    *primitive.ObjectID `json:"version" bson:"version"`
@@ -24,8 +24,8 @@ type QueueMessage struct {
 	queue      *Queue
 }
 
-// Try to delete the object. If the visibility expired and the entry was updated, the
-// version will not match and this method will return an error. The error is simply
+// Done tries to delete the message from the queue. If the visibility expired and the entry was
+// updated, the version will not match and this method will return an error. The error is simply
 // informational because the entry will be made available for another worker/processor.
 // Reminder, this queue is for idempotent workloads.
 func (m *QueueMessage) Done(ctx context.Context) error {
