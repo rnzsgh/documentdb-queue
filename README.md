@@ -1,4 +1,8 @@
 
+[![GoDoc](https://godoc.org/github.com/rnzsgh/documentdb-queue?status.svg)](https://godoc.org/github.com/rnzsgh/documentdb-queue) 
+
+[![Go Report Card](https://goreportcard.com/badge/github.com/rnzsgh/documentdb-queue)](https://goreportcard.com/report/github.com/rnzsgh/documentdb-queue)
+
 # Overview
 
 A simple POC showcasing how you can use [Amazon DocumentDB (with MongoDB compatibility)](https://aws.amazon.com/documentdb/) as a message queue. This queue is designed for [at-least-once delivery](http://www.cloudcomputingpatterns.org/at_least_once_delivery/). With this in mind, it is important to bake in [idempotence](https://en.wikipedia.org/wiki/Idempotence) into your applications because messages can be delivered multiple times. When a message is enqueued, you must specify a timeout parameter which is approximately the maximum amount of time the queue will allow before the message is made available again to be dequeued. After a message is dequeued, the clock starts ticking on the visibility timeout and you must call the *Done* function on the message, or it will be delivered to another process.
