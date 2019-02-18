@@ -308,9 +308,6 @@ func (q *Queue) Listen(count int) <-chan *QueueMessage {
 
 	q.mux.Lock()
 	defer q.mux.Unlock()
-	if q.channel != nil {
-		return q.channel
-	}
 
 	q.channel = make(chan *QueueMessage)
 	q.running = true
@@ -371,7 +368,10 @@ func (q *Queue) StopListen() {
 	q.mux.Unlock()
 
 	q.wg.Wait()
+
+	q.mux.Lock()
 	close(q.channel)
+	q.mux.Unlock()
 }
 
 // Ensure that the proper indices are on the collection. This is performed once by each
