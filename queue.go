@@ -25,7 +25,8 @@ type Queue struct {
 	timeout    time.Duration
 }
 
-// NewQueue creates new new queue struct.
+// NewQueue creates new new queue struct. This method panics if the timeout
+// is negative, or any of the string parameters has a length of zero.
 func NewQueue(
 	dbName,
 	collectionName,
@@ -33,6 +34,22 @@ func NewQueue(
 	caFile string,
 	timeout time.Duration,
 ) (*Queue, error) {
+
+	if timeout < 1 {
+		panic(fmt.Sprintf("Negative timeout duration passed - received: %d", timeout))
+	}
+
+	if len(dbName) == 0 {
+		panic("Emtpy dbName param passed")
+	}
+
+	if len(collectionName) == 0 {
+		panic("Emtpy collectionName param passed")
+	}
+
+	if len(caFile) == 0 {
+		panic("Emtpy caFile param passed")
+	}
 
 	client, err := docdbClient(connectionUri, caFile, timeout)
 	if err != nil {
@@ -45,6 +62,8 @@ func NewQueue(
 	queue := &Queue{collection: collection, client: client, timeout: timeout}
 
 	go queue.visibility()
+
+	go queue.failures()
 
 	return queue, nil
 }
@@ -101,14 +120,14 @@ func (q *Queue) Dequeue(
 		return nil, e
 	}
 
-	msg, err := q.readyEntry(ctx, msg.Id, version, msg.Visibility)
+	msg, err := q.readyMsg(ctx, msg.Id, version, msg.Visibility)
 	if err != nil {
 		return nil, err
 	}
 	return msg, nil
 }
 
-func (q *Queue) readyEntry(
+func (q *Queue) readyMsg(
 	ctx context.Context,
 	id *primitive.ObjectID,
 	version *primitive.ObjectID,
@@ -161,17 +180,19 @@ func (q *Queue) readyEntry(
 	return msg, nil
 }
 
-func (q *Queue) visibility() {
+func (q *Queue) reset(filter func() interface{}, projection interface{}) {
 	throttle := throttle()
-	for {
+	ctx, cancel := context.WithTimeout(context.Background(), q.timeout)
+	defer cancel()
 
+	for {
 		opts := options.Find()
-		opts.SetProjection(bson.D{{"_id", 1}, {"version", 1}})
+		opts.SetProjection(projection)
 		opts.SetNoCursorTimeout(true)
-		cur, err := q.collection.Find(context.Background(), bson.D{{"expire", bson.D{{"$lte", timeNowUtc()}}}})
+		cur, err := q.collection.Find(context.Background(), filter())
 		if err != nil {
 			log.Errorf(
-				"Unable to find expired - db: %s - collection: %s - reason: %v",
+				"Unable to find reset - db: %s - collection: %s - reason: %v",
 				q.collection.Database().Name(),
 				q.collection.Name(),
 				err,
@@ -180,8 +201,6 @@ func (q *Queue) visibility() {
 			continue
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), q.timeout)
-		defer cancel()
 		found := 0
 		for cur.Next(ctx) {
 			found++
@@ -189,7 +208,7 @@ func (q *Queue) visibility() {
 
 			if err = cur.Decode(msg); err != nil {
 				log.Errorf(
-					"Unable to decode expired - db: %s - collection: %s - reason: %v",
+					"Unable to decode reset - db: %s - collection: %s - reason: %v",
 					q.collection.Database().Name(),
 					q.collection.Name(),
 					err,
@@ -214,8 +233,36 @@ func (q *Queue) visibility() {
 	}
 }
 
-func (q *Queue) resetEntry() {
+// visibility looks for situations where the Done method on the message has
+// not been called and the visibility timeout has been breached. Messages in this
+// state are reset so they can be picked up again by Dequeue.
+func (q *Queue) visibility() {
+	q.reset(
+		func() interface{} {
+			return bson.D{{"expire", bson.D{{"$lte", timeNowUtc()}}}}
+		},
+		bson.D{{"_id", 1}, {"version", 1}},
+	)
+}
 
+// failures looks for situations where the message was dequeued, but for
+// some reason, ready message was never called. The timeout on this type
+// of failure is currently hard-coded to three minutes.
+func (q *Queue) failures() {
+	q.reset(
+		func() interface{} {
+			return bson.D{
+				{
+					"$and",
+					bson.A{
+						bson.D{{"dequeued", bson.D{{"$lte", timeNowUtc().Add(time.Duration(-3) * time.Minute)}}}},
+						bson.D{{"started", nil}},
+					},
+				},
+			}
+		},
+		bson.D{{"_id", 1}, {"version", 1}},
+	)
 }
 
 // Enqueue inserts a new item into the queue. This allows for an empty payload.
@@ -331,7 +378,7 @@ func (q *Queue) StopListen() {
 // process when the queue is created.
 func ensureIndexes(collection *mongo.Collection) {
 	if err := ensureIndex(collection, bson.D{{"dequeued", 1}, {"created", 1}}); err != nil {
-		log.Errorf("Unable to create dequeued index on collection: %s - reason: %v", collection.Name(), err)
+		log.Errorf("Unable to create dequeued/created index on collection: %s - reason: %v", collection.Name(), err)
 	}
 
 	if err := ensureIndex(collection, bson.D{{"_id", 1}, {"version", 1}}); err != nil {
@@ -340,5 +387,9 @@ func ensureIndexes(collection *mongo.Collection) {
 
 	if err := ensureIndex(collection, bson.D{{"expire", 1}}); err != nil {
 		log.Errorf("Unable to create expire index on collection: %s - reason: %v", collection.Name(), err)
+	}
+
+	if err := ensureIndex(collection, bson.D{{"dequeued", 1}, {"started", 1}}); err != nil {
+		log.Errorf("Unable to create dequeued/started index on collection: %s - reason: %v", collection.Name(), err)
 	}
 }
