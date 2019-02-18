@@ -10,6 +10,9 @@ A simple POC showcasing how you can use [Amazon DocumentDB (with MongoDB compati
 This uses the [MongoDB Go Driver](https://github.com/mongodb/mongo-go-driver) which at the time this was written is currently
 a [beta release](https://github.com/mongodb/mongo-go-driver/releases/tag/v0.3.0).
 
+This library has not been run in production and is not ready for prime time. There are bugs and logic errors that will cause
+production issues, so please only use as a reference.
+
 ## Requirements
 
 This has only been tested on [Go 1.11](https://golang.org/doc/go1.11) with MongoDB 3.6.9 (for local development) and docdb3.6 (cloud).
@@ -72,7 +75,7 @@ if msg, err := queue.Dequeue(context.TODO()); err != nil {
 While the *Dequeue* method is available, it is highly recommended that you use the *Listen* function
 on the queue struct, which returns a [channel](https://gobyexample.com/channels). Additionally,
 the listen approach also includes throttling (via [exponential backoff](https://en.wikipedia.org/wiki/Exponential_backoff))
-in case there are database errors or no messages in the queue. If you call the *Listen* function, then 
+in case there are database errors or no messages in the queue. If you call the *Listen* function, then
 you must call the *StopListen* function to close the channel and stop the [goroutine(s)](https://gobyexample.com/goroutines).
 
 Parameters:
