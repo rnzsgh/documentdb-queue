@@ -1,7 +1,5 @@
 
-[![GoDoc](https://godoc.org/github.com/rnzsgh/documentdb-queue?status.svg)](https://godoc.org/github.com/rnzsgh/documentdb-queue) 
-
-[![Go Report Card](https://goreportcard.com/badge/github.com/rnzsgh/documentdb-queue)](https://goreportcard.com/report/github.com/rnzsgh/documentdb-queue)
+[![GoDoc](https://godoc.org/github.com/rnzsgh/documentdb-queue?status.svg)](https://godoc.org/github.com/rnzsgh/documentdb-queue) [![Go Report Card](https://goreportcard.com/badge/github.com/rnzsgh/documentdb-queue)](https://goreportcard.com/report/github.com/rnzsgh/documentdb-queue)
 
 # Overview
 
