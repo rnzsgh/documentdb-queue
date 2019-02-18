@@ -14,7 +14,9 @@ This has only been tested on [Go 1.11](https://golang.org/doc/go1.11) with Mongo
 
 ## Use
 
-In the following NewQueue function call, the parameters are:
+### NewQueue
+
+In the NewQueue function call, the parameters are:
 * database name
 * collection name
 * [connection string URI](https://docs.mongodb.com/manual/reference/connection-string/)
@@ -26,6 +28,8 @@ if queue, err = NewQueue("test", "queue", connectionUri, "local.pem", time.Secon
   // Error - failed to connect to the database, there was an issue with the URI or the pem file
 }
 ```
+
+### Enqueue
 
 Once you have the queue client, you can add entries to the queue using the *Enqueue* function:
 
@@ -40,7 +44,9 @@ if err := queue.Enqueue(context.TODO(), "this is a test", 30); err != nil {
 }
 ```
 
-To remove entries from the queue, call the *Dequeue* function:
+### Dequeue
+
+To get the latest message from the queue, call the *Dequeue* function:
 
 Parameters:
 * The context
@@ -59,6 +65,8 @@ if msg, err := queue.Dequeue(context.TODO()); err != nil {
 }
 ```
 
+### Listen
+
 While the *Dequeue* method is available, it is highly recommended that you use the *Listen* function
 on the queue struct, which returns a [channel](https://gobyexample.com/channels). Additionally,
 the listen functionality also includes throttling (via [exponential backoff](https://en.wikipedia.org/wiki/Exponential_backoff))
@@ -72,7 +80,7 @@ Parameters:
 channel := queue.Listen(2)
 
 // This range over the channel will exit when you call StopListen, because
-// the channel is closed.
+// the channel is closed
 for msg := range channel {
 
   // Process the message
@@ -81,5 +89,9 @@ for msg := range channel {
     // Handle the error
   }
 }
+
+// When you are done using the message queue, stop listening
+queue.StopListen()
+
 ```
 
