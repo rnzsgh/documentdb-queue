@@ -42,6 +42,8 @@ func NewQueue(
 
 	queue := &Queue{collection: collection, client: client, timeout: timeout}
 
+	go queue.visibility()
+
 	return queue, nil
 }
 
@@ -153,6 +155,62 @@ func (q *Queue) readyEntry(
 	entry.queue = q
 
 	return entry, nil
+}
+
+func (q *Queue) visibility() {
+	throttle := throttle()
+	for {
+
+		opts := options.Find()
+		opts.SetProjection(bson.D{{"_id", 1}, {"version", 1}})
+		opts.SetNoCursorTimeout(true)
+		cur, err := q.collection.Find(context.Background(), bson.D{{"expire", bson.D{{"$lte", timeNowUtc()}}}})
+		if err != nil {
+			log.Errorf(
+				"Unable to find expired - db: %s - collection: %s - reason: %v",
+				q.collection.Database().Name(),
+				q.collection.Name(),
+				err,
+			)
+			throttle(true)
+			continue
+		}
+
+		ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+		found := 0
+		for cur.Next(ctx) {
+			found++
+			entry := &QueueEntry{}
+
+			if err = cur.Decode(entry); err != nil {
+				log.Errorf(
+					"Unable to decode expired - db: %s - collection: %s - reason: %v",
+					q.collection.Database().Name(),
+					q.collection.Name(),
+					err,
+				)
+				throttle(true)
+				continue
+			} else {
+				throttle(false)
+				entry.queue = q
+				if err = entry.reset(ctx); err != nil {
+					if err != mongo.ErrNoDocuments {
+						log.Error(err)
+						throttle(true)
+					}
+				}
+			}
+		}
+		cur.Close(context.Background())
+		if found == 0 {
+			throttle(true)
+		}
+	}
+}
+
+func (q *Queue) resetEntry() {
+
 }
 
 // Insert a new item into the queue. This allows for an empty payload.
@@ -271,5 +329,9 @@ func ensureIndexes(collection *mongo.Collection) {
 
 	if err := ensureIndex(collection, bson.D{{"_id", 1}, {"version", 1}}); err != nil {
 		log.Errorf("Unable to create _id/version index on collection: %s - reason: %v", collection.Name(), err)
+	}
+
+	if err := ensureIndex(collection, bson.D{{"expire", 1}}); err != nil {
+		log.Errorf("Unable to create expire index on collection: %s - reason: %v", collection.Name(), err)
 	}
 }
