@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mongodb/mongo-go-driver/bson"
 	"github.com/mongodb/mongo-go-driver/bson/primitive"
 	"github.com/mongodb/mongo-go-driver/mongo"
 	"github.com/mongodb/mongo-go-driver/mongo/options"
@@ -52,36 +51,13 @@ func ensureIndex(collection *mongo.Collection, keys interface{}) error {
 		context.Background(),
 		mongo.IndexModel{Keys: keys},
 	); err != nil {
-		return fmt.Errorf("Unable to create index on collection: %s - reason: %v", collection.Name(), err)
-	}
-
-	return nil
-}
-
-func deleteQueueEntry(
-	ctx context.Context,
-	collection *mongo.Collection,
-	id,
-	version *primitive.ObjectID,
-) error {
-	if res, err := collection.DeleteOne(ctx, bson.D{{"_id", id}, {"version", version}}); err != nil {
 		return fmt.Errorf(
-			"Unable to delete entry - db: %s - collection: %s - id: %s - version: %s - reason: %v",
+			"Unable to create index on db: %s - collection: %s - reason: %v",
 			collection.Database().Name(),
 			collection.Name(),
-			id.Hex(),
-			version.Hex(),
 			err,
 		)
-	} else if res.DeletedCount != 1 {
-		return fmt.Errorf(
-			"Unable to delete entry - db: %s - collection: %s - id: %s - version: %s - reason: doc not found",
-			collection.Database().Name(),
-			collection.Name(),
-			id.Hex(),
-			version.Hex(),
-		)
-
 	}
+
 	return nil
 }
