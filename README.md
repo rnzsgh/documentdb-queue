@@ -11,7 +11,7 @@ This uses the [MongoDB Go Driver](https://github.com/mongodb/mongo-go-driver) wh
 a [beta release](https://github.com/mongodb/mongo-go-driver/releases/tag/v0.3.0).
 
 This library has not been run in production and is not ready for prime time. There are bugs and logic errors that will cause
-production issues, so please only use as a reference.
+production issues, so please only use as a reference of what is possible.
 
 ## Requirements
 
