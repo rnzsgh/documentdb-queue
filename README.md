@@ -1,7 +1,7 @@
 
 # Overview
 
-A simple POC showcasing how you can use [Amazon DocumentDB (with MongoDB compatibility)](https://aws.amazon.com/documentdb/) as a message queue. This queue is designed for [at-least-once delivery](http://www.cloudcomputingpatterns.org/at_least_once_delivery/). With this in mind, it is important to bake in [idempotence](https://en.wikipedia.org/wiki/Idempotence) into your applications because messages can be delivered multiple times. When a message is enqueued, you must specify a timeout parameter which is approximately the maximum amount of time the queue will allow before the message is made available again to be dequeued. After a message is dequeued, the clock starts ticking on the visibility timeout and you must call the *Done* function on the message, or it may be delivered to another process.
+A simple POC showcasing how you can use [Amazon DocumentDB (with MongoDB compatibility)](https://aws.amazon.com/documentdb/) as a message queue. This queue is designed for [at-least-once delivery](http://www.cloudcomputingpatterns.org/at_least_once_delivery/). With this in mind, it is important to bake in [idempotence](https://en.wikipedia.org/wiki/Idempotence) into your applications because messages can be delivered multiple times. When a message is enqueued, you must specify a timeout parameter which is approximately the maximum amount of time the queue will allow before the message is made available again to be dequeued. After a message is dequeued, the clock starts ticking on the visibility timeout and you must call the *Done* function on the message, or it will be delivered to another process.
 
 ## Note
 
@@ -29,34 +29,56 @@ if queue, err = NewQueue("test", "queue", connectionUri, "local.pem", time.Secon
 
 Once you have the queue client, you can add entries to the queue using the *Enqueue* function:
 
-The parameters are:
+Parameters:
 * The context
 * The message payload (string)
 * The visibility timeout
 
 ```golang
-ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
-if err := queue.Enqueue(ctx, "this is a test", 30); err != nil {
+if err := queue.Enqueue(context.TODO(), "this is a test", 30); err != nil {
   // Handle the error
 }
 ```
 
 To remove entries from the queue, call the *Dequeue* function:
 
-The parameters are:
+Parameters:
 * The context
 
 ```golang
-ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
-if msg, err := queue.Dequeue(ctx); err != nil {
+if msg, err := queue.Dequeue(context.TODO()); err != nil {
   // Handle the error
 } else {
   // Process the message
 
-  if err = msg.Done(ctx); err != nil {
+  if err = msg.Done(context.TODO()); err != nil {
     // It is possible that the msg was deleted by another process.
     // If the database is unavailable, it will be processed again
     // later when it is available.
+  }
+}
+```
+
+While the *Dequeue* method is available, it is highly recommended that you use the *Listen* function
+on the queue struct, which returns a [channel](https://gobyexample.com/channels). Additionally,
+the listen functionality also includes throttling (via [exponential backoff](https://en.wikipedia.org/wiki/Exponential_backoff))
+in case there are database errors or no messages in the queue. If you call the *Listen* function, then 
+you must call the *StopListen*function to close the channel and stop the [goroutine](https://gobyexample.com/goroutines).
+
+Parameters:
+* The number of goroutines to spawn that call Dequeue
+
+```golang
+channel := queue.Listen(2)
+
+// This range over the channel will exit when you call StopListen, because
+// the channel is closed.
+for msg := range channel {
+
+  // Process the message
+
+  if err := msg.Done(context.TODO()); err != nil {
+    // Handle the error
   }
 }
 ```
