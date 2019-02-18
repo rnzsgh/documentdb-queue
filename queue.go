@@ -18,7 +18,7 @@ type Queue struct {
 	client     *mongo.Client
 	mux        sync.Mutex
 	wg         sync.WaitGroup
-	channel    chan *QueueEntry
+	channel    chan *QueueMessage
 	running    bool
 	timeout    time.Duration
 }
@@ -56,7 +56,7 @@ func (q *Queue) Size(ctx context.Context) (int64, error) {
 // visible again. If not entries are available, nil is returned.
 func (q *Queue) Dequeue(
 	ctx context.Context,
-) (*QueueEntry, error) {
+) (*QueueMessage, error) {
 
 	opts := options.FindOneAndUpdate()
 	opts.SetReturnDocument(options.After)
@@ -82,8 +82,8 @@ func (q *Queue) Dequeue(
 		return nil, err
 	}
 
-	entry := &QueueEntry{}
-	if err := res.Decode(entry); err != nil {
+	msg := &QueueMessage{}
+	if err := res.Decode(msg); err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, nil
 		}
@@ -97,10 +97,10 @@ func (q *Queue) Dequeue(
 		return nil, e
 	}
 
-	if entry, err := q.readyEntry(ctx, entry.Id, version, entry.Visibility); err != nil {
+	if msg, err := q.readyEntry(ctx, msg.Id, version, msg.Visibility); err != nil {
 		return nil, err
 	} else {
-		return entry, nil
+		return msg, nil
 	}
 }
 
@@ -109,7 +109,7 @@ func (q *Queue) readyEntry(
 	id *primitive.ObjectID,
 	version *primitive.ObjectID,
 	visibility int,
-) (*QueueEntry, error) {
+) (*QueueMessage, error) {
 
 	opts := options.FindOneAndUpdate()
 	opts.SetReturnDocument(options.After)
@@ -127,7 +127,7 @@ func (q *Queue) readyEntry(
 
 	if res.Err() != nil {
 		err := fmt.Errorf(
-			"Unable to update ready entry - db: %s - collection: %s - id %s - reason: %v",
+			"Unable to update ready msg - db: %s - collection: %s - id %s - reason: %v",
 			q.collection.Database().Name(),
 			q.collection.Name(),
 			id.Hex(),
@@ -136,15 +136,15 @@ func (q *Queue) readyEntry(
 		return nil, err
 	}
 
-	entry := &QueueEntry{}
+	msg := &QueueMessage{}
 
-	if err := res.Decode(entry); err != nil {
+	if err := res.Decode(msg); err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, nil
 		}
 
 		e := fmt.Errorf(
-			"Unable to decode entry in dequeue - db: %s - collection: %s - reason: %v",
+			"Unable to decode msg in dequeue - db: %s - collection: %s - reason: %v",
 			q.collection.Database().Name(),
 			q.collection.Name(),
 			err,
@@ -152,9 +152,9 @@ func (q *Queue) readyEntry(
 		return nil, e
 	}
 
-	entry.queue = q
+	msg.queue = q
 
-	return entry, nil
+	return msg, nil
 }
 
 func (q *Queue) visibility() {
@@ -180,9 +180,9 @@ func (q *Queue) visibility() {
 		found := 0
 		for cur.Next(ctx) {
 			found++
-			entry := &QueueEntry{}
+			msg := &QueueMessage{}
 
-			if err = cur.Decode(entry); err != nil {
+			if err = cur.Decode(msg); err != nil {
 				log.Errorf(
 					"Unable to decode expired - db: %s - collection: %s - reason: %v",
 					q.collection.Database().Name(),
@@ -193,8 +193,8 @@ func (q *Queue) visibility() {
 				continue
 			} else {
 				throttle(false)
-				entry.queue = q
-				if err = entry.reset(ctx); err != nil {
+				msg.queue = q
+				if err = msg.reset(ctx); err != nil {
 					if err != mongo.ErrNoDocuments {
 						log.Error(err)
 						throttle(true)
@@ -225,7 +225,7 @@ func (q *Queue) Enqueue(
 		panic("Cannot have a negative visibility timeout")
 	}
 
-	entry := &QueueEntry{
+	msg := &QueueMessage{
 		Id:         objectId(),
 		Version:    objectId(),
 		Created:    timeNowUtc(),
@@ -233,8 +233,8 @@ func (q *Queue) Enqueue(
 		Visibility: visibility,
 	}
 
-	if _, err := q.collection.InsertOne(ctx, entry); err != nil {
-		return fmt.Errorf("Unable to enqueue doc into collection %s - reason: %v", q.collection.Name(), err)
+	if _, err := q.collection.InsertOne(ctx, msg); err != nil {
+		return fmt.Errorf("Unable to enqueue msg into collection %s - reason: %v", q.collection.Name(), err)
 	} else {
 		return nil
 	}
@@ -245,7 +245,7 @@ func (q *Queue) Enqueue(
 // you must call StopListen on process shutdown, which will close the channel.
 // The count param indicates the number of goroutines to spawn to query the
 // database for new entries. If count is less than 1, this method panics.
-func (q *Queue) Listen(count int) <-chan *QueueEntry {
+func (q *Queue) Listen(count int) <-chan *QueueMessage {
 
 	if count < 1 {
 		panic(fmt.Sprintf("Listen on queue with count < 1 - received: %d", count))
@@ -261,7 +261,7 @@ func (q *Queue) Listen(count int) <-chan *QueueEntry {
 		return q.channel
 	}
 
-	q.channel = make(chan *QueueEntry)
+	q.channel = make(chan *QueueMessage)
 	q.running = true
 
 	q.wg.Add(count)
@@ -296,11 +296,11 @@ func (q *Queue) listen() {
 
 	for q.listening() {
 		ctx, _ := context.WithTimeout(context.Background(), q.timeout)
-		if entry, err := q.Dequeue(ctx); err != nil {
+		if msg, err := q.Dequeue(ctx); err != nil {
 			log.Error(err)
 			throttle(true)
-		} else if entry != nil {
-			q.channel <- entry
+		} else if msg != nil {
+			q.channel <- msg
 			throttle(false)
 		} else {
 			throttle(true)
