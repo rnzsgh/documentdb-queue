@@ -40,15 +40,15 @@ func NewQueue(
 	}
 
 	if len(dbName) == 0 {
-		panic("Emtpy dbName param passed")
+		panic("Empty dbName param passed")
 	}
 
 	if len(collectionName) == 0 {
-		panic("Emtpy collectionName param passed")
+		panic("Empty collectionName param passed")
 	}
 
 	if len(caFile) == 0 {
-		panic("Emtpy caFile param passed")
+		panic("Empty caFile param passed")
 	}
 
 	client, err := docdbClient(connectionUri, caFile, timeout)
