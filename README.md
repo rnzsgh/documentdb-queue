@@ -59,7 +59,7 @@ if msg, err := queue.Dequeue(context.TODO()); err != nil {
 
   if err = msg.Done(context.TODO()); err != nil {
     // It is possible that the msg was deleted by another process.
-    // If the database is unavailable, it will be processed again
+    // If the database is unavailable, the message wil be processed again
     // later when it is available.
   }
 }
@@ -69,12 +69,12 @@ if msg, err := queue.Dequeue(context.TODO()); err != nil {
 
 While the *Dequeue* method is available, it is highly recommended that you use the *Listen* function
 on the queue struct, which returns a [channel](https://gobyexample.com/channels). Additionally,
-the listen functionality also includes throttling (via [exponential backoff](https://en.wikipedia.org/wiki/Exponential_backoff))
+the listen approach also includes throttling (via [exponential backoff](https://en.wikipedia.org/wiki/Exponential_backoff))
 in case there are database errors or no messages in the queue. If you call the *Listen* function, then 
-you must call the *StopListen*function to close the channel and stop the [goroutine](https://gobyexample.com/goroutines).
+you must call the *StopListen* function to close the channel and stop the [goroutine(s)](https://gobyexample.com/goroutines).
 
 Parameters:
-* The number of goroutines to spawn that call Dequeue
+* The number of goroutine(s) to spawn that call Dequeue
 
 ```golang
 channel := queue.Listen(2)
