@@ -119,8 +119,8 @@ func TestListen(t *testing.T) {
 // This test is going to enqueue an msg with a low visibility timeout. Next
 // it is going to dequeue the msg, wait and then verify the item is available
 // to dequeue.
-func TestMessageReset(t *testing.T) {
-	t.Run("TestMessageReset", func(t *testing.T) {
+func TestMessageVisibilityTimeout(t *testing.T) {
+	t.Run("TestMessageVisibilityTimeout", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := queue.Enqueue(ctx, "this is a test", 1); err != nil {
