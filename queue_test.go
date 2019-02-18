@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mongodb/mongo-go-driver/bson"
 	"github.com/mongodb/mongo-go-driver/bson/primitive"
 )
 
@@ -20,14 +21,17 @@ func TestNewQueue(t *testing.T) {
 		} else if queue == nil {
 			t.Errorf("Unable to get queue struct- reason: queue is nil")
 		}
+
+		if _, err = queue.collection.DeleteMany(context.Background(), bson.D{}); err != nil {
+			t.Errorf("Failed to clear collection for testing - reason: %v", err)
+		}
 	})
 }
 
 func TestEnqueue(t *testing.T) {
 	t.Run("TestEnqueue", func(t *testing.T) {
-		var err error
 		ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
-		if err = queue.Enqueue(ctx, "this is a test", 30); err != nil {
+		if err := queue.Enqueue(ctx, "this is a test", 30); err != nil {
 			t.Errorf("Unable to enqueue - reason: %v", err)
 		}
 	})
@@ -98,9 +102,50 @@ func TestListen(t *testing.T) {
 
 		wg.Wait()
 		queue.StopListen()
+		time.Sleep(10 * time.Millisecond) // Wait for the loop to exit the flag to be set
 		if !closed {
 			t.Errorf("Channel not closed")
 		}
 
+	})
+}
+
+// This test is going to enqueue an entry with a low visibility timeout. Next
+// it is going to dequeue the entry, wait and then verify the item is available
+// to dequeue.
+func TestEntryReset(t *testing.T) {
+	t.Run("TestEntryReset", func(t *testing.T) {
+		ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := queue.Enqueue(ctx, "this is a test", 1); err != nil {
+			t.Errorf("Unable to enqueue in entry reset - reason: %v", err)
+		} else {
+			ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+			if entry, err := queue.Dequeue(ctx); err != nil {
+				t.Errorf("Unable to dequeue entry reset - reason: %v", err)
+			} else if entry == nil {
+				t.Error("Entry reset failure - reason: no entry for dequeue")
+			} else {
+				id := entry.Id
+				version := entry.Version
+				time.Sleep(3 * time.Second) // Let the background process run and reset the expired entry
+				if entry, err = queue.Dequeue(ctx); err != nil {
+					t.Errorf("Unable to dequeue entry reset - reason: %v", err)
+				} else if entry == nil {
+					t.Error("Entry reset failure - reason: no entry for dequeue - value was not reset")
+				} else {
+					if *entry.Id != *id {
+						t.Error("Entry reset failure - reason: entry dequeued is not one expected")
+					}
+
+					if *entry.Version == *version {
+						t.Error("Entry reset failure - reason: entry dequeued does not have an updated version")
+					}
+
+					if err := entry.Done(ctx); err != nil {
+						t.Errorf("Entry reset failure - reason: %v", err)
+					}
+				}
+			}
+		}
 	})
 }
