@@ -13,7 +13,7 @@ import (
 	"github.com/mongodb/mongo-go-driver/mongo/options"
 )
 
-// The queue struct. Keep a handle to this struct for
+// Queue is queue processing struct. Keep a handle to this struct for
 // sending and receiving messages.
 type Queue struct {
 	collection *mongo.Collection
@@ -54,9 +54,10 @@ func (q *Queue) Size(ctx context.Context) (int64, error) {
 	return q.collection.CountDocuments(ctx, bson.D{}, options.Count())
 }
 
-// Pull the next item off the queue. You must call the Done function on
-// the message when you are done processing or it will timeout and be made
-// visible again. If not entries are available, nil is returned.
+// Dequeue pulls the next item off the queue (if available). You must call
+// the Done function on the message when you are done processing or it will
+// timeout and be made visible again. If not entries are available, nil is
+// returned.
 func (q *Queue) Dequeue(
 	ctx context.Context,
 ) (*QueueMessage, error) {
@@ -100,11 +101,11 @@ func (q *Queue) Dequeue(
 		return nil, e
 	}
 
-	if msg, err := q.readyEntry(ctx, msg.Id, version, msg.Visibility); err != nil {
+	msg, err := q.readyEntry(ctx, msg.Id, version, msg.Visibility)
+	if err != nil {
 		return nil, err
-	} else {
-		return msg, nil
 	}
+	return msg, nil
 }
 
 func (q *Queue) readyEntry(
