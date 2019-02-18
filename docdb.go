@@ -10,14 +10,12 @@ import (
 	"github.com/mongodb/mongo-go-driver/mongo/options"
 )
 
-const defaultTimeoutInSeconds = 10
-
 func objectId() *primitive.ObjectID {
 	id := primitive.NewObjectID()
 	return &id
 }
 
-func docdbClient(connectionUri, caFile string) (*mongo.Client, error) {
+func docdbClient(connectionUri, caFile string, timeout time.Duration) (*mongo.Client, error) {
 	client, err := mongo.NewClientWithOptions(
 		connectionUri,
 		options.Client().SetSSL(
@@ -33,12 +31,12 @@ func docdbClient(connectionUri, caFile string) (*mongo.Client, error) {
 		return nil, fmt.Errorf("Unable to create new db client -  reason: %v", err)
 	}
 
-	ctx, _ := context.WithTimeout(context.Background(), defaultTimeoutInSeconds*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 	if err = client.Connect(ctx); err != nil {
 		return nil, fmt.Errorf("Unable to connect to db - reason: %v", err)
 	}
 
-	ctx, _ = context.WithTimeout(context.Background(), defaultTimeoutInSeconds*time.Second)
 	if err = client.Ping(ctx, nil); err != nil {
 		return nil, fmt.Errorf("Unable to ping db - reason: %v", err)
 	}

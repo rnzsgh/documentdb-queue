@@ -21,7 +21,7 @@ type QueueMessage struct {
 	Started    *time.Time          `json:"started" bson:"started"`
 	Dequeued   *time.Time          `json:"dequeued" bson:"dequeued"`
 	Expire     *time.Time          `json:"expire" bson:"expire"`
-	queue      *Queue              `json:"-" bson:"-"`
+	queue      *Queue
 }
 
 // Try to delete the object. If the visibility expired and the entry was updated, the

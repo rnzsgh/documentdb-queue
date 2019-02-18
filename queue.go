@@ -32,7 +32,7 @@ func NewQueue(
 	timeout time.Duration,
 ) (*Queue, error) {
 
-	client, err := docdbClient(connectionUri, caFile)
+	client, err := docdbClient(connectionUri, caFile, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +176,8 @@ func (q *Queue) visibility() {
 			continue
 		}
 
-		ctx, _ := context.WithTimeout(context.Background(), q.timeout)
+		ctx, cancel := context.WithTimeout(context.Background(), q.timeout)
+		defer cancel()
 		found := 0
 		for cur.Next(ctx) {
 			found++
@@ -293,9 +294,9 @@ func throttle() func(bool) {
 
 func (q *Queue) listen() {
 	throttle := throttle()
-
+	ctx, cancel := context.WithTimeout(context.Background(), q.timeout)
+	defer cancel()
 	for q.listening() {
-		ctx, _ := context.WithTimeout(context.Background(), q.timeout)
 		if msg, err := q.Dequeue(ctx); err != nil {
 			log.Error(err)
 			throttle(true)

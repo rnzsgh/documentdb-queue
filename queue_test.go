@@ -30,7 +30,8 @@ func TestNewQueue(t *testing.T) {
 
 func TestEnqueue(t *testing.T) {
 	t.Run("TestEnqueue", func(t *testing.T) {
-		ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 		if err := queue.Enqueue(ctx, "this is a test", 30); err != nil {
 			t.Errorf("Unable to enqueue - reason: %v", err)
 		}
@@ -39,7 +40,8 @@ func TestEnqueue(t *testing.T) {
 
 func TestDequeue(t *testing.T) {
 	t.Run("TestDequeue", func(t *testing.T) {
-		ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 		if msg, err := queue.Dequeue(ctx); err != nil {
 			t.Errorf("Unable to dequeue - reason: %v", err)
 		} else if msg == nil {
@@ -78,17 +80,21 @@ func TestListen(t *testing.T) {
 		wg.Add(2)
 
 		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
 			for i := 0; i < send; i++ {
-				ctx, _ := context.WithTimeout(context.Background(), 2*time.Second)
+
 				queue.Enqueue(ctx, "somerandomid", 5)
 			}
 			wg.Done()
 		}()
 
 		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
 			for msg := range channel {
 				received++
-				ctx, _ := context.WithTimeout(context.Background(), 2*time.Second)
+
 				if err := msg.Done(ctx); err != nil {
 					t.Errorf("Problem with done: %v", err)
 				}
@@ -115,11 +121,11 @@ func TestListen(t *testing.T) {
 // to dequeue.
 func TestMessageReset(t *testing.T) {
 	t.Run("TestMessageReset", func(t *testing.T) {
-		ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 		if err := queue.Enqueue(ctx, "this is a test", 1); err != nil {
 			t.Errorf("Unable to enqueue in msg reset - reason: %v", err)
 		} else {
-			ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 			if msg, err := queue.Dequeue(ctx); err != nil {
 				t.Errorf("Unable to dequeue msg reset - reason: %v", err)
 			} else if msg == nil {
