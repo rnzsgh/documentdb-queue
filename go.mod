@@ -1,4 +1,4 @@
-module github.com/rnzsgh/queue
+module github.com/rnzsgh/documentdb-queue
 
 require (
 	github.com/go-stack/stack v1.8.0 // indirect
