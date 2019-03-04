@@ -182,8 +182,6 @@ func (q *Queue) readyMsg(
 
 func (q *Queue) reset(filter func() interface{}, projection interface{}) {
 	throttle := throttle()
-	ctx, cancel := context.WithTimeout(context.Background(), q.timeout)
-	defer cancel()
 
 	for {
 		opts := options.Find()
@@ -202,6 +200,8 @@ func (q *Queue) reset(filter func() interface{}, projection interface{}) {
 		}
 
 		found := 0
+		ctx, cancel := context.WithTimeout(context.Background(), q.timeout)
+
 		for cur.Next(ctx) {
 			found++
 			msg := &QueueMessage{}
@@ -218,7 +218,7 @@ func (q *Queue) reset(filter func() interface{}, projection interface{}) {
 			} else {
 				throttle(false)
 				msg.queue = q
-				if err = msg.reset(ctx); err != nil {
+				if err = resetMsg(msg, q.timeout); err != nil {
 					if err != mongo.ErrNoDocuments {
 						log.Error(err)
 						throttle(true)
@@ -226,11 +226,18 @@ func (q *Queue) reset(filter func() interface{}, projection interface{}) {
 				}
 			}
 		}
+		cancel()
 		cur.Close(context.Background())
 		if found == 0 {
 			throttle(true)
 		}
 	}
+}
+
+func resetMsg(msg *QueueMessage, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return msg.reset(ctx)
 }
 
 // visibility looks for situations where the Done method on the message has
@@ -360,7 +367,6 @@ func (q *Queue) listen() {
 func (q *Queue) dequeue() (*QueueMessage, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), q.timeout)
 	defer cancel()
-
 	return q.Dequeue(ctx)
 }
 
