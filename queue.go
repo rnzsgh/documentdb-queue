@@ -341,10 +341,10 @@ func throttle() func(bool) {
 
 func (q *Queue) listen() {
 	throttle := throttle()
-	ctx, cancel := context.WithTimeout(context.Background(), q.timeout)
-	defer cancel()
+
 	for q.listening() {
-		if msg, err := q.Dequeue(ctx); err != nil {
+
+		if msg, err := q.dequeue(); err != nil {
 			log.Error(err)
 			throttle(true)
 		} else if msg != nil {
@@ -355,6 +355,13 @@ func (q *Queue) listen() {
 		}
 	}
 	q.wg.Done()
+}
+
+func (q *Queue) dequeue() (*QueueMessage, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), q.timeout)
+	defer cancel()
+
+	return q.Dequeue(ctx)
 }
 
 // StopListen must be called when you are ready to shutdown the Listen call. This
